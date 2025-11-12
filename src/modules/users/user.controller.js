@@ -1,7 +1,8 @@
 import prisma from '../../config/db.js';
-import { hashPassword, generateJWT } from '../../utils/auth.js';
+import { hashPassword, generateJWT, verifyPassword } from '../../utils/auth.js';
 
-export async function registerUser(req, res) {
+// Export functions at the end!
+async function registerUser(req, res) {
     try {
         if (!req.body.user) {
             return res.status(422).json({error: "User data is required"});
@@ -28,8 +29,8 @@ export async function registerUser(req, res) {
             user: {
                 email: newUser.email,
                 username: newUser.username,
-                bio: newUser.bio || null,
-                image: newUser.image || null,
+                bio: newUser.bio,
+                image: newUser.image,
                 token: token,
             }
         }
@@ -43,3 +44,36 @@ export async function registerUser(req, res) {
         return res.status(500).json({error: err.message});
     }
 }
+
+async function loginUser(req, res) {
+    try {
+        if (!req.body.user) {
+            return res.status(422).json({error: "User data is required"});
+        }
+
+        const {email, password} = req.body.user;
+        const user = await prisma.user.findUnique({where: {email}});
+        if (!user) {
+            return res.status(401).json({error: "Invalid email or password"});
+        }
+
+        const isValidPassword = await verifyPassword(password, user.password);
+        if (!isValidPassword) {
+            return res.status(401).json({error: "Invalid email or password"});
+        }
+
+        const userResponse = {
+            email,
+            token: generateJWT(user),
+            username: user.username,
+            bio: user.bio,
+            image: user.image,
+        }
+
+        return res.status(200).json({user: userResponse});
+    } catch (err) {
+        return res.status(500).json({error: err.message});
+    }
+}
+
+export { registerUser, loginUser };
